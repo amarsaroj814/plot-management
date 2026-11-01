@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LandPulse - Plot & Land Management System</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- React and React DOM -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  
+  <!-- Babel Compiler for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    @media print {
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // Initial Registered Users
+    const initialRegisteredUsers = [
+      { email: 'admin@landpulse.com', password: 'password123', role: 'admin', isVerified: true },
+      { email: 'user@landpulse.com', password: 'password123', role: 'user', isVerified: true }
+    ];
+
+    // Initial Plot Inventory Data
+    const initialPlots = [
+      { id: 'PLT-101', plotNo: 'A-12', project: 'Green Valley Enclave', location: 'Noida Sector 150', area: '1500 Sq. Ft', price: 4500000, status: 'Sold', sellerName: 'Ramesh Verma', buyerName: 'Suresh Kumar', saleDate: '2026-09-15', registryNo: 'REG-2026-8891' },
+      { id: 'PLT-102', plotNo: 'A-15', project: 'Green Valley Enclave', location: 'Noida Sector 150', area: '2000 Sq. Ft', price: 6000000, status: 'Available', sellerName: 'Ramesh Verma', buyerName: '-', saleDate: '-', registryNo: '-' },
+      { id: 'PLT-103', plotNo: 'B-04', project: 'Royal Palms City', location: 'Greater Noida West', area: '1200 Sq. Ft', price: 3200000, status: 'Sold', sellerName: 'Vikram Singh', buyerName: 'Anil Agarwal', saleDate: '2026-10-02', registryNo: 'REG-2026-9012' },
+      { id: 'PLT-104', plotNo: 'B-09', project: 'Royal Palms City', location: 'Greater Noida West', area: '1800 Sq. Ft', price: 4800000, status: 'Token Received', sellerName: 'Vikram Singh', buyerName: 'Pooja Sharma', saleDate: '2026-10-20', registryNo: 'Pending' },
+      { id: 'PLT-105', plotNo: 'C-01', project: 'Eco Smart Township', location: 'Yamuna Expressway', area: '2500 Sq. Ft', price: 7500000, status: 'Available', sellerName: 'Suraj Patel', buyerName: '-', saleDate: '-', registryNo: '-' },
+    ];
+
+    // Initial Sales / Transaction Registry
+    const initialTransactions = [
+      { id: 'TXN-901', plotNo: 'A-12', location: 'Noida Sector 150', area: '1500 Sq. Ft', sellerName: 'Ramesh Verma', sellerPhone: '+91 98765-43210', buyerName: 'Suresh Kumar', buyerPhone: '+91 98123-45678', buyerAadhaar: '4532-8891-1029', salePrice: 4500000, paidAmount: 4500000, date: '2026-09-15', paymentMode: 'Bank Transfer' },
+      { id: 'TXN-902', plotNo: 'B-04', location: 'Greater Noida West', area: '1200 Sq. Ft', sellerName: 'Vikram Singh', sellerPhone: '+91 99887-76655', buyerName: 'Anil Agarwal', buyerPhone: '+91 97654-32109', buyerAadhaar: '9012-3344-5566', salePrice: 3200000, paidAmount: 3200000, date: '2026-10-02', paymentMode: 'Cheque & Registry' },
+    ];
+
+    function App() {
+      // User Auth & Registry State
+      const [registeredUsers, setRegisteredUsers] = useState(initialRegisteredUsers);
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [currentUser, setCurrentUser] = useState(null);
+      const [authView, setAuthView] = useState('login'); // 'login' | 'register' | 'register_otp' | 'forgot' | 'verify' | 'reset'
+
+      // Login Form State
+      const [loginRole, setLoginRole] = useState('admin');
+      const [loginEmail, setLoginEmail] = useState('');
+      const [loginPassword, setLoginPassword] = useState('');
+
+      // Registration State
+      const [regRole, setRegRole] = useState('admin');
+      const [regEmail, setRegEmail] = useState('');
+      const [regPassword, setRegPassword] = useState('');
+      const [adminCode, setAdminCode] = useState('');
+
+      // OTP & Security State
+      const [resetEmail, setResetEmail] = useState('');
+      const [generatedOtp, setGeneratedOtp] = useState('');
+      const [enteredOtp, setEnteredOtp] = useState('');
+      const [newPassword, setNewPassword] = useState('');
+      const [authMessage, setAuthMessage] = useState({ type: '', text: '' });
+
+      // Core System States
+      const [activeTab, setActiveTab] = useState('dashboard');
+      const [plots, setPlots] = useState(initialPlots);
+      const [transactions, setTransactions] = useState(initialTransactions);
+      const [searchQuery, setSearchQuery] = useState('');
+
+      // Modals
+      const [showAddPlotModal, setShowAddPlotModal] = useState(false);
+      const [showSellModal, setShowSellModal] = useState(false);
+      const [selectedPlotForSell, setSelectedPlotForSell] = useState(null);
+
+      // Forms
+      const [newPlot, setNewPlot] = useState({ plotNo: '', project: '', location: '', area: '', price: '', sellerName: '' });
+      const [sellForm, setSellForm] = useState({ buyerName: '', buyerPhone: '', buyerAadhaar: '', sellerPhone: '', paidAmount: '', paymentMode: 'Bank Transfer', registryNo: '' });
+
+      useEffect(() => {
+        if (window.lucide) { window.lucide.createIcons(); }
+      }, [isAuthenticated, authView, activeTab, showAddPlotModal, showSellModal]);
+
+      // --- AUTH HANDLERS ---
+      const handleLogin = (e) => {
+        e.preventDefault();
+        const found = registeredUsers.find(u => u.email.toLowerCase() === loginEmail.toLowerCase() && u.role === loginRole);
+        if (!found) {
+          setAuthMessage({ type: 'error', text: 'Account not found! Registration required.' });
+          return;
+        }
+        if (found.password !== loginPassword) {
+          setAuthMessage({ type: 'error', text: 'Incorrect password.' });
+          return;
+        }
+        setIsAuthenticated(true);
+        setCurrentUser({ email: found.email, role: found.role });
+        setAuthMessage({ type: '', text: '' });
+      };
+
+      const handleRegisterSubmit = (e) => {
+        e.preventDefault();
+        const exists = registeredUsers.some(u => u.email.toLowerCase() === regEmail.toLowerCase());
+        if (exists) {
+          setAuthMessage({ type: 'error', text: 'Email already registered.' });
+          return;
+        }
+
+        if (regRole === 'admin') {
+          if (adminCode !== 'Pit@144') {
+            setAuthMessage({ type: 'error', text: 'Invalid Security Code! Admin access code "Pit@144" required.' });
+            return;
+          }
+          setRegisteredUsers([...registeredUsers, { email: regEmail, password: regPassword, role: 'admin', isVerified: true }]);
+          setAuthView('login');
+          setAuthMessage({ type: 'success', text: 'Admin registered successfully with Pit@144 code! You can login now.' });
+          setAdminCode('');
+        } else {
+          const otp = Math.floor(100000 + Math.random() * 900000).toString();
+          setGeneratedOtp(otp);
+          setAuthView('register_otp');
+          setAuthMessage({ type: 'info', text: `Registration OTP sent to ${regEmail}! (Simulated OTP: ${otp})` });
+        }
+      };
+
+      const handleVerifyRegOtp = (e) => {
+        e.preventDefault();
+        if (enteredOtp === generatedOtp) {
+          setRegisteredUsers([...registeredUsers, { email: regEmail, password: regPassword, role: 'user', isVerified: true }]);
+          setAuthView('login');
+          setAuthMessage({ type: 'success', text: 'User verified! Account registered successfully.' });
+          setRegEmail(''); setRegPassword(''); setEnteredOtp('');
+        } else {
+          setAuthMessage({ type: 'error', text: 'Invalid OTP code.' });
+        }
+      };
+
+      const handleSendForgotOtp = (e) => {
+        e.preventDefault();
+        const exists = registeredUsers.some(u => u.email.toLowerCase() === resetEmail.toLowerCase());
+        if (!exists) {
+          setAuthMessage({ type: 'error', text: 'No user registered with this email.' });
+          return;
+        }
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        setGeneratedOtp(otp);
+        setAuthView('verify');
+        setAuthMessage({ type: 'info', text: `OTP code sent to email! (Simulated OTP: ${otp})` });
+      };
+
+      const handleVerifyForgotOtp = (e) => {
+        e.preventDefault();
+        if (enteredOtp === generatedOtp) {
+          setAuthView('reset');
+          setAuthMessage({ type: 'success', text: 'OTP verified! Set new password.' });
+        } else {
+          setAuthMessage({ type: 'error', text: 'Invalid OTP.' });
+        }
+      };
+
+      const handleResetPassword = (e) => {
+        e.preventDefault();
+        setRegisteredUsers(registeredUsers.map(u => u.email.toLowerCase() === resetEmail.toLowerCase() ? { ...u, password: newPassword } : u));
+        setAuthView('login');
+        setAuthMessage({ type: 'success', text: 'Password reset completed! You can now login.' });
+        setResetEmail(''); setEnteredOtp(''); setNewPassword('');
+      };
+
+      // --- PLOT MANAGEMENT HANDLERS ---
+      const handleAddPlot = (e) => {
+        e.preventDefault();
+        const id = `PLT-${Math.floor(100 + Math.random() * 900)}`;
+        setPlots([...plots, {
+          ...newPlot,
+          id,
+          price: Number(newPlot.price),
+          status: 'Available',
+          buyerName: '-',
+          saleDate: '-',
+          registryNo: '-'
+        }]);
+        setShowAddPlotModal(false);
+        setNewPlot({ plotNo: '', project: '', location: '', area: '', price: '', sellerName: '' });
+      };
+
+      const handleRecordSale = (e) => {
+        e.preventDefault();
+        if (!selectedPlotForSell) return;
+
+        const dateToday = new Date().toISOString().split('T')[0];
+        
+        // Update Plot status
+        setPlots(plots.map(p => p.id === selectedPlotForSell.id ? {
+          ...p,
+          status: 'Sold',
+          buyerName: sellForm.buyerName,
+          saleDate: dateToday,
+          registryNo: sellForm.registryNo || `REG-${Math.floor(1000 + Math.random()*9000)}`
+        } : p));
+
+        // Record Transaction
+        const txnId = `TXN-${Math.floor(100 + Math.random() * 900)}`;
+        setTransactions([...transactions, {
+          id: txnId,
+          plotNo: selectedPlotForSell.plotNo,
+          location: selectedPlotForSell.location,
+          area: selectedPlotForSell.area,
+          sellerName: selectedPlotForSell.sellerName,
+          sellerPhone: sellForm.sellerPhone || '+91 99000-11223',
+          buyerName: sellForm.buyerName,
+          buyerPhone: sellForm.buyerPhone,
+          buyerAadhaar: sellForm.buyerAadhaar,
+          salePrice: selectedPlotForSell.price,
+          paidAmount: Number(sellForm.paidAmount) || selectedPlotForSell.price,
+          date: dateToday,
+          paymentMode: sellForm.paymentMode
+        }]);
+
+        setShowSellModal(false);
+        setSelectedPlotForSell(null);
+        setSellForm({ buyerName: '', buyerPhone: '', buyerAadhaar: '', sellerPhone: '', paidAmount: '', paymentMode: 'Bank Transfer', registryNo: '' });
+      };
+
+      // AUTH RENDER
+      if (!isAuthenticated) {
+        return (
+          <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl p-8 border border-slate-100">
+              
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center bg-emerald-600 text-white p-3 rounded-2xl mb-3 shadow-lg shadow-emerald-600/30">
+                  <i data-lucide="map-pin" className="w-8 h-8"></i>
+                </div>
+                <h1 className="text-2xl font-bold text-slate-800">LandPulse System</h1>
+                <p className="text-xs text-slate-500 mt-1">Plot & Land Buy/Sell Registry Portal</p>
+              </div>
+
+              {(authView === 'login' || authView === 'register') && (
+                <div className="flex border-b border-slate-200 mb-6">
+                  <button
+                    onClick={() => { setAuthView('login'); setAuthMessage({ type: '', text: '' }); }}
+                    className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center space-x-2 border-b-2 transition ${
+                      authView === 'login' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    <i data-lucide="log-in" className="w-4 h-4"></i>
+                    <span>LOGIN</span>
+                  </button>
+                  <button
+                    onClick={() => { setAuthView('register'); setAuthMessage({ type: '', text: '' }); }}
+                    className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center space-x-2 border-b-2 transition ${
+                      authView === 'register' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    <i data-lucide="user-plus" className="w-4 h-4"></i>
+                    <span>REGISTER</span>
+                  </button>
+                </div>
+              )}
+
+              {authMessage.text && (
+                <div className={`mb-6 p-3 rounded-xl text-xs font-medium border ${
+                  authMessage.type === 'error' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                  authMessage.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                  'bg-sky-50 text-sky-800 border-sky-200'
+                }`}>
+                  {authMessage.text}
+                </div>
+              )}
+
+              {/* LOGIN FORM */}
+              {authView === 'login' && (
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Access Role</label>
+                    <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setLoginRole('admin')}
+                        className={`py-2 rounded-lg text-xs font-bold transition ${loginRole === 'admin' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}
+                      >
+                        Admin Portal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLoginRole('user')}
+                        className={`py-2 rounded-lg text-xs font-bold transition ${loginRole === 'user' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}
+                      >
+                        User / Staff
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Email</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="email@landpulse.com"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="text-xs font-semibold text-slate-600">Password</label>
+                      <button type="button" onClick={() => setAuthView('forgot')} className="text-xs text-emerald-600 hover:underline">Forgot?</button>
+                    </div>
+                    <input
+                      type="password"
+                      required
+                      placeholder="••••••••"
+                      value={loginPassword}
+                      onChange={(e) => setLoginPassword(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition">
+                    Login to System
+                  </button>
+                </form>
+              )}
+
+              {/* REGISTER FORM */}
+              {authView === 'register' && (
+                <form onSubmit={handleRegisterSubmit} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Register As</label>
+                    <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setRegRole('admin')}
+                        className={`py-2 rounded-lg text-xs font-bold transition ${regRole === 'admin' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}
+                      >
+                        Admin
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setRegRole('user')}
+                        className={`py-2 rounded-lg text-xs font-bold transition ${regRole === 'user' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}
+                      >
+                        User / Staff
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Email</label>
+                    <input type="email" required placeholder="name@landpulse.com" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} className="w-full px-3.5 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 block mb-1">Password</label>
+                    <input type="password" required placeholder="Min 6 chars" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} className="w-full px-3.5 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" />
+                  </div>
+
+                  {regRole === 'admin' ? (
+                    <div>
+                      <label className="text-xs font-bold text-amber-700 block mb-1 flex items-center space-x-1">
+                        <i data-lucide="shield-alert" className="w-4 h-4 text-amber-600"></i>
+                        <span>Admin Security Authorization Code</span>
+                      </label>
+                      <input type="password" required placeholder="Enter Code (Pit@144)" value={adminCode} onChange={(e) => setAdminCode(e.target.value)} className="w-full px-3.5 py-2.5 border-2 border-amber-300 bg-amber-50/50 rounded-xl text-sm font-mono focus:ring-2 focus:ring-amber-500 focus:outline-none" />
+                      <p className="text-[10px] text-amber-600 mt-1">Admin register code Pit@144 is mandatory.</p>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 italic">* User register requires 6-digit Email OTP code.</p>
+                  )}
+
+                  <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition">
+                    {regRole === 'admin' ? 'Verify & Register Admin' : 'Send Registration Email OTP'}
+                  </button>
+                </form>
+              )}
+
+              {/* REGISTER OTP VERIFICATION */}
+              {authView === 'register_otp' && (
+                <form onSubmit={handleVerifyRegOtp} className="space-y-4">
+                  <div className="text-center mb-4">
+                    <h2 className="font-bold text-slate-800 text-base">Verify Registration Email</h2>
+                    <p className="text-xs text-slate-500">Enter OTP code sent to <span className="font-semibold text-slate-700">{regEmail}</span></p>
+                  </div>
+                  <input type="text" maxLength="6" required placeholder="123456" value={enteredOtp} onChange={(e) => setEnteredOtp(e.target.value)} className="w-full px-3.5 py-2.5 border rounded-xl text-center font-mono text-lg font-bold focus:ring-2 focus:ring-emerald-500" />
+                  <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition">
+                    Complete User Registration
+                  </button>
+                </form>
+              )}
+
+              {/* FORGOT PASSWORD */}
+              {authView === 'forgot' && (
+                <form onSubmit={handleSendForgotOtp} className="space-y-4">
+                  <div className="text-center mb-4">
+                    <h2 className="font-bold text-slate-800 text-base">Reset Password</h2>
+                    <p className="text-xs text-slate-500">Send unique OTP to your registered email.</p>
+                  </div>
+                  <input type="email" required placeholder="registered@landpulse.com" value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} className="w-full px-3.5 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500" />
+                  <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition">
+                    Send OTP Code
+                  </button>
+                  <button type="button" onClick={() => setAuthView('login')} className="w-full py-2 text-xs font-semibold text-slate-500 hover:text-slate-800 text-center block">
+                    Back to Login
+                  </button>
+                </form>
+              )}
+
+              {/* VERIFY FORGOT OTP */}
+              {authView === 'verify' && (
+                <form onSubmit={handleVerifyForgotOtp} className="space-y-4">
+                  <input type="text" maxLength="6" required placeholder="Enter OTP" value={enteredOtp} onChange={(e) => setEnteredOtp(e.target.value)} className="w-full px-3.5 py-2.5 border rounded-xl text-center font-mono text-lg font-bold focus:ring-2 focus:ring-emerald-500" />
+                  <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition">Verify OTP</button>
+                </form>
+              )}
+
+              {/* RESET NEW PASSWORD */}
+              {authView === 'reset' && (
+                <form onSubmit={handleResetPassword} className="space-y-4">
+                  <input type="password" required placeholder="New Password (Min 6 chars)" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-3.5 py-2.5 border rounded-xl text-sm focus:ring-2 focus:ring-emerald-500" />
+                  <button type="submit" className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition">Save New Password</button>
+                </form>
+              )}
+            </div>
+          </div>
+        );
+      }
+
+      // --- MAIN APPLICATION DASHBOARD AFTER LOGIN ---
+      return (
+        <div className="flex h-screen overflow-hidden bg-slate-100">
+          
+          {/* Sidebar */}
+          <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col justify-between p-4 no-print">
+            <div>
+              <div className="flex items-center space-x-3 px-3 py-4 border-b border-slate-800 mb-6">
+                <div className="bg-emerald-600 text-white p-2 rounded-xl shadow-md">
+                  <i data-lucide="map" className="w-6 h-6"></i>
+                </div>
+                <div>
+                  <h1 className="font-bold text-lg text-white tracking-wide">LandPulse</h1>
+                  <p className="text-xs text-slate-400 capitalize">{currentUser?.role} Workspace</p>
+                </div>
+              </div>
+
+              <nav className="space-y-1">
+                {[
+                  { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
+                  { id: 'plots', label: 'All Plots & Inventory', icon: 'layers' },
+                  { id: 'transactions', label: 'Buy/Sell Registry', icon: 'receipt' },
+                  { id: 'sellers', label: 'Sellers Directory', icon: 'user-check' },
+                  { id: 'buyers', label: 'Buyers Directory', icon: 'users' },
+                ].map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => setActiveTab(item.id)}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                      activeTab === item.id 
+                        ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/40' 
+                        : 'hover:bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <i data-lucide={item.icon} className="w-5 h-5"></i>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </nav>
+            </div>
+
+            <div className="space-y-2">
+              <div className="p-3 bg-slate-800/60 rounded-xl border border-slate-700/50 flex items-center space-x-3">
+                <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs uppercase">
+                  {currentUser?.email[0]}
+                </div>
+                <div className="truncate">
+                  <p className="text-xs font-semibold text-white truncate">{currentUser?.email}</p>
+                  <p className="text-[10px] text-emerald-400 font-medium capitalize">{currentUser?.role}</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => { setIsAuthenticated(false); setCurrentUser(null); }}
+                className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold bg-rose-600/10 text-rose-400 hover:bg-rose-600 hover:text-white transition"
+              >
+                <i data-lucide="log-out" className="w-4 h-4"></i>
+                <span>Logout Session</span>
+              </button>
+            </div>
+          </aside>
+
+          {/* Main Content */}
+          <main className="flex-1 overflow-y-auto p-8">
+            
+            {/* Top Bar */}
+            <header className="flex justify-between items-center mb-8 no-print">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-800 capitalize">{activeTab.replace('-', ' ')}</h2>
+                <p className="text-sm text-slate-500">Real Estate Land & Plot Registry System</p>
+              </div>
+              <div className="flex space-x-3">
+                <button 
+                  onClick={() => setShowAddPlotModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-medium flex items-center space-x-2 shadow-sm transition"
+                >
+                  <i data-lucide="plus-circle" className="w-4 h-4"></i>
+                  <span>Add New Plot</span>
+                </button>
+              </div>
+            </header>
+
+            {/* TAB 1: DASHBOARD */}
+            {activeTab === 'dashboard' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <StatCard icon="layers" color="blue" title="Total Plots" value={plots.length} trend="Total Managed" />
+                  <StatCard icon="check-circle" color="emerald" title="Plots Sold" value={plots.filter(p=>p.status==='Sold').length} trend="Registry Completed" />
+                  <StatCard icon="clock" color="amber" title="Plots Available" value={plots.filter(p=>p.status==='Available').length} trend="Ready for Sale" />
+                  <StatCard icon="dollar-sign" color="teal" title="Total Sales Volume" value={`₹${(transactions.reduce((acc, t)=>acc+t.salePrice, 0)/100000).toFixed(1)} Lakhs`} trend="Registry Value" />
+                </div>
+
+                {/* Recent Transactions Table */}
+                <div className="bg-white rounded-2xl shadow-sm p-6 border border-slate-200">
+                  <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center justify-between">
+                    <span>Recent Buy / Sell Transactions</span>
+                    <span className="text-xs bg-emerald-50 text-emerald-700 font-semibold px-2.5 py-1 rounded-full">Live Land Ledger</span>
+                  </h3>
+                  <table className="w-full text-left text-sm text-slate-600">
+                    <thead className="bg-slate-50 text-slate-700 uppercase text-xs font-semibold">
+                      <tr>
+                        <th className="p-3">Txn ID</th>
+                        <th className="p-3">Plot No</th>
+                        <th className="p-3">Location</th>
+                        <th className="p-3">Seller (Kaun Becha)</th>
+                        <th className="p-3">Buyer (Kaun Khareeda)</th>
+                        <th className="p-3">Amount</th>
+                        <th className="p-3">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {transactions.map(t => (
+                        <tr key={t.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-semibold text-emerald-700">{t.id}</td>
+                          <td className="p-3 font-bold text-slate-800">{t.plotNo}</td>
+                          <td className="p-3">{t.location}</td>
+                          <td className="p-3 text-slate-700 font-medium">{t.sellerName}</td>
+                          <td className="p-3 text-emerald-800 font-medium">{t.buyerName}</td>
+                          <td className="p-3 font-bold text-slate-800">₹{(t.salePrice).toLocaleString('en-IN')}</td>
+                          <td className="p-3 text-xs">{t.date}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: PLOTS INVENTORY */}
+            {activeTab === 'plots' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <div className="flex justify-between items-center mb-6">
+                  <input
+                    type="text"
+                    placeholder="Search by Plot No, Location, Seller, or Buyer..."
+                    className="w-80 px-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+                <table className="w-full text-left text-sm text-slate-600">
+                  <thead className="bg-slate-50 text-slate-700 uppercase text-xs font-semibold">
+                    <tr>
+                      <th className="p-3">Plot ID</th>
+                      <th className="p-3">Plot No & Project</th>
+                      <th className="p-3">Location</th>
+                      <th className="p-3">Area / Size</th>
+                      <th className="p-3">Price</th>
+                      <th className="p-3">Seller Details</th>
+                      <th className="p-3">Buyer Details</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {plots
+                      .filter(p => p.plotNo.toLowerCase().includes(searchQuery.toLowerCase()) || p.location.toLowerCase().includes(searchQuery.toLowerCase()) || p.sellerName.toLowerCase().includes(searchQuery.toLowerCase()))
+                      .map(p => (
+                        <tr key={p.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-semibold text-slate-400">{p.id}</td>
+                          <td className="p-3 font-bold text-slate-800">{p.plotNo} <br/><span className="text-xs text-slate-400 font-normal">{p.project}</span></td>
+                          <td className="p-3">{p.location}</td>
+                          <td className="p-3 font-medium text-slate-700">{p.area}</td>
+                          <td className="p-3 font-bold text-slate-800">₹{(p.price).toLocaleString('en-IN')}</td>
+                          <td className="p-3 text-slate-700">{p.sellerName}</td>
+                          <td className="p-3 text-emerald-800 font-medium">{p.buyerName}</td>
+                          <td className="p-3">
+                            <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
+                              p.status === 'Sold' ? 'bg-emerald-100 text-emerald-700' :
+                              p.status === 'Token Received' ? 'bg-amber-100 text-amber-700' : 'bg-sky-100 text-sky-700'
+                            }`}>
+                              {p.status}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            {p.status === 'Available' ? (
+                              <button
+                                onClick={() => { setSelectedPlotForSell(p); setShowSellModal(true); }}
+                                className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-lg font-medium shadow-sm"
+                              >
+                                Record Sale
+                              </button>
+                            ) : (
+                              <span className="text-xs text-slate-400 italic">Registered</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* TAB 3: TRANSACTIONS (BUY / SELL REGISTRY) */}
+            {activeTab === 'transactions' && (
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                <h3 className="font-bold text-lg text-slate-800 mb-4">Complete Buy / Sell Land Registry Records</h3>
+                <div className="space-y-4">
+                  {transactions.map(t => (
+                    <div key={t.id} className="p-5 border rounded-2xl bg-slate-50/50 flex justify-between items-center">
+                      <div>
+                        <div className="flex items-center space-x-3 mb-2">
+                          <span className="font-bold text-slate-800 text-base">Plot No: {t.plotNo} ({t.area})</span>
+                          <span className="text-xs bg-emerald-100 text-emerald-800 px-2.5 py-0.5 rounded-full font-semibold">{t.paymentMode}</span>
+                        </div>
+                        <p className="text-xs text-slate-500 mb-3"><i data-lucide="map-pin" className="inline w-3 h-3 mr-1"></i>{t.location}</p>
+                        
+                        <div className="grid grid-cols-2 gap-8 text-xs">
+                          <div className="bg-white p-3 rounded-xl border">
+                            <p className="text-slate-400 uppercase font-bold text-[10px] mb-1">Seller Details (Kaun Becha)</p>
+                            <p className="font-bold text-slate-800">{t.sellerName}</p>
+                            <p className="text-slate-500">{t.sellerPhone}</p>
+                          </div>
+                          <div className="bg-white p-3 rounded-xl border">
+                            <p className="text-emerald-600 uppercase font-bold text-[10px] mb-1">Buyer Details (Kaun Khareeda)</p>
+                            <p className="font-bold text-emerald-900">{t.buyerName}</p>
+                            <p className="text-slate-500">Phone: {t.buyerPhone}</p>
+                            <p className="text-slate-500">Aadhaar: {t.buyerAadhaar}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-xs text-slate-400">Total Agreed Price</p>
+                        <p className="text-2xl font-extrabold text-slate-800">₹{(t.salePrice).toLocaleString('en-IN')}</p>
+                        <p className="text-xs text-slate-500 mt-1">Registry Date: {t.date}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: SELLERS DIRECTORY */}
+            {activeTab === 'sellers' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[...new Set(plots.map(p => p.sellerName))].map((seller, idx) => (
+                  <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div className="w-12 h-12 bg-amber-100 text-amber-800 rounded-full flex items-center justify-center font-bold text-lg mb-3">
+                      {seller[0]}
+                    </div>
+                    <h4 className="font-bold text-slate-800 text-base">{seller}</h4>
+                    <p className="text-xs text-slate-500 mb-3">Land Owner / Seller</p>
+                    <div className="border-t pt-3 text-xs text-slate-600">
+                      <p>Total Plots Owned/Listed: <span className="font-bold text-slate-800">{plots.filter(p=>p.sellerName===seller).length}</span></p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* TAB 5: BUYERS DIRECTORY */}
+            {activeTab === 'buyers' && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {transactions.map((t, idx) => (
+                  <div key={idx} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center font-bold text-lg mb-3">
+                      {t.buyerName[0]}
+                    </div>
+                    <h4 className="font-bold text-slate-800 text-base">{t.buyerName}</h4>
+                    <p className="text-xs text-slate-500">Phone: {t.buyerPhone}</p>
+                    <p className="text-xs text-slate-500 mb-3">Aadhaar: {t.buyerAadhaar}</p>
+                    <div className="border-t pt-3 text-xs text-slate-600">
+                      <p>Purchased Plot: <span className="font-bold text-emerald-700">{t.plotNo} ({t.location})</span></p>
+                      <p>Purchase Price: <span className="font-bold text-slate-800">₹{(t.salePrice).toLocaleString('en-IN')}</span></p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </main>
+
+          {/* MODAL: ADD NEW PLOT */}
+          {showAddPlotModal && (
+            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+                <h3 className="font-bold text-lg mb-4 text-slate-800">Add New Land / Plot Listing</h3>
+                <form onSubmit={handleAddPlot} className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="text" placeholder="Plot No (e.g. C-15)" required className="p-2.5 border rounded-xl text-sm" value={newPlot.plotNo} onChange={e=>setNewPlot({...newPlot, plotNo: e.target.value})} />
+                    <input type="text" placeholder="Project / Colony Name" required className="p-2.5 border rounded-xl text-sm" value={newPlot.project} onChange={e=>setNewPlot({...newPlot, project: e.target.value})} />
+                  </div>
+                  <input type="text" placeholder="Location / Sector / City" required className="w-full p-2.5 border rounded-xl text-sm" value={newPlot.location} onChange={e=>setNewPlot({...newPlot, location: e.target.value})} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="text" placeholder="Area / Size (Sq. Ft / Sq. Yd)" required className="p-2.5 border rounded-xl text-sm" value={newPlot.area} onChange={e=>setNewPlot({...newPlot, area: e.target.value})} />
+                    <input type="number" placeholder="Price (INR)" required className="p-2.5 border rounded-xl text-sm" value={newPlot.price} onChange={e=>setNewPlot({...newPlot, price: e.target.value})} />
+                  </div>
+                  <input type="text" placeholder="Seller / Owner Name" required className="w-full p-2.5 border rounded-xl text-sm" value={newPlot.sellerName} onChange={e=>setNewPlot({...newPlot, sellerName: e.target.value})} />
+                  
+                  <div className="flex space-x-3 pt-3">
+                    <button type="button" onClick={()=>setShowAddPlotModal(false)} className="w-1/2 py-2 border rounded-xl text-sm font-semibold text-slate-600">Cancel</button>
+                    <button type="submit" className="w-1/2 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold">Save Plot</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL: RECORD SALE TRANSACTION (BUYER & SELLER LINKING) */}
+          {showSellModal && selectedPlotForSell && (
+            <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl">
+                <h3 className="font-bold text-lg mb-1 text-slate-800">Record Plot Sale & Registry</h3>
+                <p className="text-xs text-slate-500 mb-4">Plot: <span className="font-bold text-slate-800">{selectedPlotForSell.plotNo}</span> | Price: ₹{(selectedPlotForSell.price).toLocaleString('en-IN')}</p>
+                
+                <form onSubmit={handleRecordSale} className="space-y-3">
+                  <div className="bg-slate-50 p-3 rounded-xl border">
+                    <p className="text-xs font-bold text-slate-700 mb-1">Seller Information</p>
+                    <p className="text-sm font-semibold text-slate-800">{selectedPlotForSell.sellerName}</p>
+                    <input type="text" placeholder="Seller Phone Number" required className="w-full p-2 mt-2 border rounded-lg text-xs bg-white" value={sellForm.sellerPhone} onChange={e=>setSellForm({...sellForm, sellerPhone: e.target.value})} />
+                  </div>
+
+                  <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-200">
+                    <p className="text-xs font-bold text-emerald-800 mb-2">Buyer Information (Kaun Khareed Raha Hai)</p>
+                    <input type="text" placeholder="Buyer Full Name" required className="w-full p-2 mb-2 border rounded-lg text-xs bg-white" value={sellForm.buyerName} onChange={e=>setSellForm({...sellForm, buyerName: e.target.value})} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input type="text" placeholder="Buyer Phone Number" required className="p-2 border rounded-lg text-xs bg-white" value={sellForm.buyerPhone} onChange={e=>setSellForm({...sellForm, buyerPhone: e.target.value})} />
+                      <input type="text" placeholder="Buyer Aadhaar / Govt ID" required className="p-2 border rounded-lg text-xs bg-white" value={sellForm.buyerAadhaar} onChange={e=>setSellForm({...sellForm, buyerAadhaar: e.target.value})} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="number" placeholder="Paid Amount (INR)" required className="p-2.5 border rounded-xl text-xs" value={sellForm.paidAmount} onChange={e=>setSellForm({...sellForm, paidAmount: e.target.value})} />
+                    <select className="p-2.5 border rounded-xl text-xs" value={sellForm.paymentMode} onChange={e=>setSellForm({...sellForm, paymentMode: e.target.value})}>
+                      <option>Bank Transfer</option>
+                      <option>Cheque & Registry</option>
+                      <option>Cash & Installments</option>
+                    </select>
+                  </div>
+
+                  <div className="flex space-x-3 pt-3">
+                    <button type="button" onClick={()=>setShowSellModal(false)} className="w-1/2 py-2 border rounded-xl text-sm font-semibold text-slate-600">Cancel</button>
+                    <button type="submit" className="w-1/2 py-2 bg-emerald-600 text-white rounded-xl text-sm font-semibold">Confirm Sale & Registry</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    // Stat Card Helper
+    function StatCard({ icon, color, title, value, trend }) {
+      const colorMap = {
+        blue: 'bg-blue-50 text-blue-600',
+        emerald: 'bg-emerald-50 text-emerald-600',
+        amber: 'bg-amber-50 text-amber-600',
+        teal: 'bg-teal-50 text-teal-600',
+      };
+
+      return (
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center space-x-4">
+          <div className={`p-3 rounded-xl ${colorMap[color] || 'bg-slate-100'}`}>
+            <i data-lucide={icon} className="w-6 h-6"></i>
+          </div>
+          <div>
+            <p className="text-xs text-slate-500 font-medium">{title}</p>
+            <h4 className="text-xl font-bold text-slate-800">{value}</h4>
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">{trend}</p>
+          </div>
+        </div>
+      );
+    }
+
+    // Render Application
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
